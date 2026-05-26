@@ -52,6 +52,32 @@
         --gutter: 24px;
       }
 
+      /* Fallback palette for browsers without oklch() support (Chrome <111, Safari <15.4, Firefox <113).
+         Approximated hex/rgba equivalents of the oklch values above so the entire UI still renders. */
+      @supports not (color: oklch(0% 0 0)) {
+        :root {
+          --paper:        #0a1117;
+          --paper-2:      #10171f;
+          --paper-3:      #161e26;
+          --ink:          #f7fafc;
+          --ink-2:        #d4dbe2;
+          --ink-3:        #a4b3c0;
+          --rule:         rgba(99, 119, 140, 0.45);
+          --rule-soft:    rgba(99, 119, 140, 0.22);
+          --accent:       #8aeaff;
+          --accent-ink:   #0c1620;
+          --focus:        #a3f5ff;
+          --pill-fill:    rgba(10, 17, 23, 0.7);
+        }
+        /* Hard-fallback the few inline oklch() declarations that don't reference variables. */
+        .nav { background: rgba(10, 17, 23, 0.78); }
+        .bg-portrait::before {
+          background:
+            radial-gradient(70% 60% at 50% 0%, rgba(36, 56, 79, 0.35), transparent 70%),
+            linear-gradient(180deg, rgba(10, 17, 23, 0.45) 0%, rgba(10, 17, 23, 0.85) 80%, #0a1117 100%);
+        }
+      }
+
       *, *::before, *::after { box-sizing: border-box; }
       html { scroll-behavior: smooth; }
       body {
@@ -2572,17 +2598,24 @@
       if (reduceMotion) {
         canvasEl.style.display = 'none';
       } else {
-        const [{ default: THREE_NS }, modules] = await Promise.all([
-          import('three').then(m => ({ default: m })),
-          Promise.all([
-            import('three/addons/postprocessing/EffectComposer.js'),
-            import('three/addons/postprocessing/RenderPass.js'),
-            import('three/addons/postprocessing/UnrealBloomPass.js'),
-            import('three/addons/postprocessing/ShaderPass.js'),
-            import('three/addons/postprocessing/SMAAPass.js'),
-            import('three/addons/postprocessing/OutputPass.js'),
-          ]),
-        ]);
+        let THREE_NS, modules;
+        try {
+          [{ default: THREE_NS }, modules] = await Promise.all([
+            import('three').then(m => ({ default: m })),
+            Promise.all([
+              import('three/addons/postprocessing/EffectComposer.js'),
+              import('three/addons/postprocessing/RenderPass.js'),
+              import('three/addons/postprocessing/UnrealBloomPass.js'),
+              import('three/addons/postprocessing/ShaderPass.js'),
+              import('three/addons/postprocessing/SMAAPass.js'),
+              import('three/addons/postprocessing/OutputPass.js'),
+            ]),
+          ]);
+        } catch (err) {
+          console.warn('[atom] Three.js failed to load, hiding canvas:', err);
+          canvasEl.style.display = 'none';
+          throw err;
+        }
         const THREE = THREE_NS;
         const [EC, RP, UBP, SP, SMAA, OP] = modules;
         const EffectComposer = EC.EffectComposer;
@@ -2884,8 +2917,13 @@
           composer.render();
         }
 
-        init();
-        animate();
+        try {
+          init();
+          animate();
+        } catch (err) {
+          console.warn('[atom] WebGL trail disabled:', err);
+          canvasEl.style.display = 'none';
+        }
       }
     </script>
   </body>
